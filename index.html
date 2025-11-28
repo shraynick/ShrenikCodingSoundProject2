@@ -1,0 +1,1348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="icon" href="codingSoundFavicon.ico" />
+<title>Interfaces 02 — Launch Pads (Project Two, Pro+, Safe)</title>
+
+<!-- Tone.js: use a stable build that includes Tone.Recorder (guarded below) -->
+<script src="https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.min.js"></script>
+
+<style>
+  :root{
+    --n: 4;                 /* grid size (n x n) */
+    --gap: 8px;
+    --bg: #0b0f14;
+    --panel: #121820;
+    --panel-2: #0e141c;
+    --text: #eaf2ff;
+    --muted: #97a3b6;
+    --accent: #5de4c7;
+    --accent-2:#8bd2ff;
+    --pad-base: 210;
+    --ring: 0 0 0 2px rgba(93,228,199,.3);
+    --card-b: 1px solid #1b2430;
+    --shadow-lg: 0 10px 30px rgba(0,0,0,.35);
+    --error: #ff6b6b;
+  }
+  /* Light */
+  .theme-light{
+    --bg:#f7fbff; --panel:#ffffff; --panel-2:#f1f6ff; --text:#0b1726; --muted:#52607a;
+    --accent:#1aa97b; --accent-2:#0d77e8; --card-b:1px solid #dbe7ff; --ring:0 0 0 2px rgba(13,119,232,.14);
+    --error:#d64040;
+  }
+  /* Neon */
+  .theme-neon{
+    --bg:#05070c; --panel:#0a0f18; --panel-2:#070b12; --text:#e9f1ff; --muted:#8aa3c6;
+    --accent:#5ef1cf; --accent-2:#ff7ad9; --card-b:1px solid #192233; --ring:0 0 0 2px rgba(255,122,217,.22);
+    --error:#ff6bcd;
+  }
+
+  *{ box-sizing:border-box }
+  html,body{ height:100%; margin:0; background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif }
+  a{ color:var(--accent-2); text-decoration:none }
+  header{
+    padding:18px 16px 10px; display:flex; align-items:center; gap:14px; flex-wrap:wrap; justify-content:space-between
+  }
+  .brand{ display:flex; align-items:center; gap:12px }
+  h1{ font-size:20px; margin:0; letter-spacing:.2px }
+  .badge{ font-size:11px; color:#000; background:linear-gradient(135deg,var(--accent),#2fb59a);
+    padding:3px 8px; border-radius:999px; font-weight:700 }
+  .hint{ color:var(--muted); font-size:12px }
+  .wrap{ display:grid; grid-template-columns: 360px 1fr; gap:18px; padding:0 16px 20px }
+  @media (max-width: 1100px){ .wrap{ grid-template-columns: 1fr } }
+
+  /* Panels */
+  .panel{
+    background: var(--panel);
+    border: var(--card-b);
+    border-radius: 14px;
+    padding: 14px;
+    display:grid;
+    gap:14px;
+    box-shadow: var(--shadow-lg);
+  }
+  .subpanel{
+    background: var(--panel-2);
+    border: var(--card-b); border-radius:12px; padding:12px; display:grid; gap:10px
+  }
+  .row{ display:grid; grid-template-columns: 1fr 1fr; gap:10px }
+  .row-3{ grid-template-columns: repeat(3,1fr) }
+  .row-4{ grid-template-columns: repeat(4,1fr) }
+  .row-5{ grid-template-columns: repeat(5,1fr) }
+
+  .field{ display:flex; flex-direction:column; gap:6px }
+  label{ font-size:12px; color:var(--muted) }
+  select, input[type="range"], input[type="number"]{
+    width:100%; padding:8px 10px; border-radius:10px; border:1px solid #233042; background:#0f141b; color:var(--text);
+    appearance:none; outline:none
+  }
+  .theme-light select, .theme-light input[type="range"], .theme-light input[type="number"]{
+    background:#f8fbff; border-color:#d7e6ff;
+  }
+  .range{ display:grid; gap:6px }
+  .val{ font-size:12px; color:var(--muted); text-align:right }
+  .btn{
+    appearance:none; border:1px solid #233042; background:#0f141b; color:var(--text);
+    padding:10px 12px; border-radius:10px; cursor:pointer; transition:.14s ease; text-align:center; user-select:none
+  }
+  .btn:hover{ border-color:#2f4058; transform: translateY(-1px) }
+  .btn:focus-visible{ box-shadow: var(--ring) }
+  .btn.on{ background:#13302a; border-color:#1d5b4a; color:#bdf7ea }
+  .btn.accent{ background:linear-gradient(135deg,#13302a,#102034); border-color:#1d5b4a }
+  .btn.warn{ background:linear-gradient(135deg,#2a1313,#201015); border-color:#5b1d1d }
+  .kbd{ background:#0d1117; border:1px solid #2a3443; border-radius:8px; padding:8px 10px; font-size:12px; color:#9fb0c8 }
+  .theme-light .kbd{ background:#eef5ff; border-color:#d7e6ff; color:#3a4f77 }
+
+  /* stage */
+  .stage{ display:grid; gap:14px; align-content:start }
+  .bar{ display:flex; align-items:center; gap:10px; flex-wrap:wrap }
+  .spacer{ flex:1 }
+  .pill{ padding:8px 10px; border:1px solid #233042; border-radius:999px; font-size:12px; color:var(--muted) }
+
+  /* grid */
+  .grid{
+    display:grid; grid-template-columns: repeat(var(--n), 1fr);
+    gap: var(--gap); width:min(92vmin, 980px); height:min(92vmin, 980px);
+    touch-action:none; user-select:none; margin-inline:auto
+  }
+  .pad{
+    position:relative; border-radius:14px;
+    background: hsl(var(--pad-h), 70%, 42%);
+    display:flex; align-items:center; justify-content:center;
+    font-weight:700; letter-spacing:.3px; color:#ffffffd0;
+    box-shadow: 0 6px 20px rgba(0,0,0,.25), inset 0 -8px 18px rgba(0,0,0,.15);
+    outline:none; border:2px solid rgba(255,255,255,.18);
+    overflow:hidden
+  }
+  .pad::after{
+    content:""; position:absolute; inset:-20% -20% auto auto; height:70%; width:70%;
+    background: radial-gradient(ellipse at top right, rgba(255,255,255,.14), rgba(255,255,255,0) 60%);
+    pointer-events:none; transform: rotate(-10deg);
+  }
+  .pad .note{ font-size: clamp(12px, 2.4vmin, 18px) }
+  .pad .small{ font-size: clamp(9px, 1.6vmin, 13px); opacity:.8 }
+  .pad.active{ transform: scale(.975); filter: brightness(.9) saturate(1.1) }
+  .pad.latched{ outline:2px solid var(--accent) }
+  .pad .ripple{
+    position:absolute; inset:auto; width:16px; height:16px; border-radius:999px;
+    background:radial-gradient(circle, #fff, #fff0 60%); opacity:.8; pointer-events:none;
+    animation: ripple .4s ease-out forwards
+  }
+  @keyframes ripple{ from{ transform:scale(1); opacity:.8 } to{ transform:scale(12); opacity:0 } }
+
+  /* scope */
+  .scopeWrap{ display:grid; gap:6px }
+  #scope{ width:100%; height:130px; background: #0b0f14; border:1px solid #1b2430; border-radius:10px }
+
+  /* sequencer */
+  .seq{ display:grid; gap:10px }
+  .seqHead{ display:flex; align-items:center; gap:8px; justify-content:space-between }
+  .seqGrid{
+    --cols: 16;
+    display:grid; grid-template-columns: 100px repeat(var(--cols), 1fr);
+    gap:6px; overflow:auto; padding-bottom:4px
+  }
+  .seqRowTitle{ position:sticky; left:0; background:var(--panel-2); border:var(--card-b); padding:6px 8px; border-radius:8px; font-size:12px; color:var(--muted) }
+  .cell{
+    height:28px; border-radius:6px; border:1px solid #233042; background:#0f141b; cursor:pointer; position:relative
+  }
+  .cell.on{ background: linear-gradient(180deg, #15302a, #0e1e2a); border-color:#1d5b4a; box-shadow: inset 0 0 0 1px rgba(93,228,199,.25) }
+  .cell.play{ outline: 2px solid var(--accent-2) }
+  .theme-light .cell{ background:#f8fbff; border-color:#d7e6ff }
+  .legend{ display:flex; gap:8px; flex-wrap:wrap; font-size:12px; color:var(--muted) }
+
+  footer{ padding:10px 16px 20px; color:var(--muted); font-size:12px; text-align:center }
+  .right{ text-align:right }
+
+  /* Error Console */
+  .err{
+    position: sticky;
+    top: 0;
+    z-index: 9999;
+    margin: 8px 16px 0;
+    padding: 10px;
+    border-radius: 10px;
+    border: 1px solid color-mix(in oklch, var(--error), #000 25%);
+    background: color-mix(in oklch, var(--error), #000 80%);
+    color: #fff;
+    box-shadow: 0 6px 24px rgba(0,0,0,.4);
+  }
+  .err h2{ margin:0 0 6px 0; font-size:14px }
+  .err .row{ grid-template-columns: auto auto auto; align-items: center }
+  .err pre{
+    margin:6px 0 0 0; max-height:180px; overflow:auto; background: rgba(0,0,0,.25);
+    border: 1px solid rgba(255,255,255,.14); border-radius:8px; padding:8px; font-size:12px; line-height:1.35
+  }
+  .hidden{ display:none }
+</style>
+</head>
+<body class="theme-neon">
+  <!-- Error Console (auto-opens on error) -->
+  <section id="errPanel" class="err hidden" role="alert" aria-live="assertive">
+    <div class="bar" style="gap:8px; justify-content:space-between">
+      <h2>⚠️ Error Console</h2>
+      <div style="display:flex; gap:8px">
+        <button id="errCopy" class="btn">Copy</button>
+        <button id="errClear" class="btn">Clear</button>
+        <button id="errHide" class="btn">Hide</button>
+      </div>
+    </div>
+    <pre id="errList">(empty)</pre>
+  </section>
+
+  <header>
+    <div class="brand">
+      <h1>Interfaces 02: Launch Pads — Project Two</h1>
+      <span class="badge">PRO+ Safe</span>
+    </div>
+    <div class="bar">
+      <div class="hint">
+        Tip:
+        <span class="kbd">Space</span> sustain •
+        <span class="kbd">L</span> latch •
+        Keyboard rows trigger pads •
+        <span class="kbd">.</span> theme cycle
+      </div>
+      <select id="themeSel" title="Theme" class="btn">
+        <option value="theme-neon" selected>Neon</option>
+        <option value="theme-light">Light</option>
+        <option value="">Dark</option>
+      </select>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <!-- CONTROL PANEL -->
+    <aside class="panel" aria-label="Controls">
+      <div class="subpanel" aria-label="Scale & Layout">
+        <div class="row-3">
+          <div class="field">
+            <label for="key">Key</label>
+            <select id="key">
+              <option>C</option><option>C#</option><option>Db</option><option>D</option><option>D#</option><option>Eb</option>
+              <option>E</option><option>F</option><option>F#</option><option>Gb</option><option>G</option><option>G#</option>
+              <option>Ab</option><option>A</option><option>A#</option><option>Bb</option><option>B</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="scale">Scale</label>
+            <select id="scale">
+              <option value="ionian">Major (Ionian)</option>
+              <option value="aeolian">Minor (Aeolian)</option>
+              <option value="dorian">Dorian</option>
+              <option value="mixolydian">Mixolydian</option>
+              <option value="pentMajor">Pentatonic (Maj)</option>
+              <option value="pentMinor">Pentatonic (Min)</option>
+              <option value="blues">Blues</option>
+              <option value="chromatic">Chromatic</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="gridN">Grid Size (n×n)</label>
+            <select id="gridN"><option>3</option><option selected>4</option><option>5</option><option>6</option></select>
+          </div>
+        </div>
+        <div class="row-3">
+          <div class="field">
+            <label for="octaves">Octaves</label>
+            <select id="octaves"><option>1</option><option selected>2</option><option>3</option><option>4</option></select>
+          </div>
+          <div class="field">
+            <label for="startOct">Start Octave</label>
+            <input type="number" id="startOct" value="3" min="0" max="7" />
+          </div>
+          <div class="field">
+            <label for="layout">Layout</label>
+            <select id="layout">
+              <option value="row">Left→Right (by scale)</option>
+              <option value="col">Top→Bottom (by scale)</option>
+              <option value="snake">Snake</option>
+              <option value="pc">Pitch Class (C→B)</option>
+            </select>
+          </div>
+        </div>
+        <div class="bar">
+          <button class="btn" id="chord">Chord: Off</button>
+          <button class="btn" id="randomize" title="Shuffle pad assignments">Randomize ♻️</button>
+          <div class="spacer"></div>
+          <button class="btn" id="savePreset" title="Save preset">Save Preset 💾</button>
+          <button class="btn" id="loadPreset" title="Load preset">Load</button>
+        </div>
+      </div>
+
+      <div class="subpanel" aria-label="Synthesis">
+        <div class="row-4">
+          <div class="field">
+            <label for="wave">Waveform</label>
+            <select id="wave">
+              <option>triangle</option><option>square</option><option>sawtooth</option><option selected>sine</option>
+            </select>
+          </div>
+          <div class="range">
+            <label for="rev">Reverb</label>
+            <input id="rev" type="range" min="0" max="1" step="0.01" value="0.28" />
+            <div class="val" id="revV">28%</div>
+          </div>
+          <div class="range">
+            <label for="delay">Delay</label>
+            <input id="delay" type="range" min="0" max="1" step="0.01" value="0.18" />
+            <div class="val" id="delayV">18%</div>
+          </div>
+          <div class="range">
+            <label for="vol">Master</label>
+            <input id="vol" type="range" min="-36" max="0" step="1" value="-6" />
+            <div class="val" id="volV">-6 dB</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="subpanel" aria-label="Performance">
+        <div class="row-5">
+          <div class="range">
+            <label for="tempo">Tempo</label>
+            <input id="tempo" type="range" min="40" max="200" value="110" />
+            <div class="val" id="tempoV">110 BPM</div>
+          </div>
+          <div class="range">
+            <label for="swing">Swing</label>
+            <input id="swing" type="range" min="0" max=".6" step=".01" value="0" />
+            <div class="val" id="swingV">0%</div>
+          </div>
+          <button class="btn" id="latch" title="Toggle latch (L)">Latch: Off</button>
+          <button class="btn" id="arp" title="Cycle held notes with the tempo">Arp: Off</button>
+          <button class="btn" id="metro" title="Metronome on/off">Met: Off</button>
+        </div>
+        <div class="bar">
+          <button class="btn warn" id="panic" title="Stop all notes (Esc)">Panic ⛔</button>
+          <div class="spacer"></div>
+          <div class="pill">Velocity follows touch/pen pressure • Drag across pads to glide • Drag off & release to stop</div>
+        </div>
+      </div>
+
+      <div class="subpanel" aria-label="Recording & MIDI">
+        <div class="row-3">
+          <div class="field">
+            <label>MIDI Input</label>
+            <select id="midiIn"><option value="">None</option></select>
+          </div>
+          <button class="btn" id="record">Record ⏺</button>
+          <a id="download" class="btn" style="display:none" download="project-two-launchpads.wav">Download ⤓</a>
+        </div>
+      </div>
+    </aside>
+
+    <!-- STAGE -->
+    <main class="stage">
+      <div class="panel">
+        <div class="bar">
+          <div class="legend" id="legend"></div>
+          <div class="spacer"></div>
+          <div class="pill right">Keyboard: number row + QWERTY rows map left→right, top→bottom</div>
+        </div>
+        <section class="stage">
+          <div id="pads" class="grid" role="grid" aria-label="Launch pad grid"></div>
+        </section>
+      </div>
+
+      <div class="panel">
+        <div class="scopeWrap">
+          <div class="bar">
+            <strong>Waveform</strong>
+            <div class="spacer"></div>
+            <div class="hint">Live output visualizer</div>
+          </div>
+          <canvas id="scope"></canvas>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="seq">
+          <div class="seqHead">
+            <div style="display:flex; gap:8px; align-items:center">
+              <button class="btn" id="seqOn">Sequencer: Off</button>
+              <button class="btn" id="seqClear" title="Clear all steps">Clear</button>
+              <button class="btn" id="seqRand" title="Fill some random steps">Random</button>
+            </div>
+            <div class="hint">16-step × 8 lanes • Rows map to current scale notes</div>
+          </div>
+          <div id="seqGrid" class="seqGrid" style="--cols:16"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <footer>
+    Project Two — built with <a href="https://tonejs.github.io/" target="_blank" rel="noreferrer">Tone.js</a>.
+    If anything breaks, the Error Console above will show details. 🙂
+  </footer>
+
+<script>
+/* ===========================
+   Error Console (early + robust)
+=========================== */
+(function setupErrorConsole(){
+  const panel = document.getElementById('errPanel');
+  const list  = document.getElementById('errList');
+  const btnCopy  = document.getElementById('errCopy');
+  const btnClear = document.getElementById('errClear');
+  const btnHide  = document.getElementById('errHide');
+  const logs = [];
+
+  function fmtError({type, message, stack, src, line, col, ts}){
+    const t = new Date(ts).toLocaleTimeString();
+    let out = `[${t}] ${type}: ${message}`;
+    if (src) out += `\n  at ${src}:${line || '?'}:${col || '?'}`;
+    if (stack) out += `\n${stack}`;
+    return out;
+  }
+  function render(){
+    list.textContent = logs.length ? logs.join('\n\n') : '(empty)';
+  }
+  function push(entry){
+    logs.push(fmtError(entry));
+    panel.classList.remove('hidden');
+    render();
+  }
+  window.addEventListener('error', (e)=>{
+    push({
+      type: 'Error',
+      message: e.message,
+      stack: (e.error && e.error.stack) || '',
+      src: e.filename, line: e.lineno, col: e.colno,
+      ts: Date.now()
+    });
+  });
+  window.addEventListener('unhandledrejection', (e)=>{
+    const reason = e.reason || {};
+    push({
+      type: 'UnhandledRejection',
+      message: reason.message || String(reason),
+      stack: reason.stack || '',
+      ts: Date.now()
+    });
+  });
+
+  btnCopy.addEventListener('click', async ()=>{
+    try{
+      await navigator.clipboard.writeText(list.textContent);
+      btnCopy.textContent = 'Copied ✔️';
+      setTimeout(()=>btnCopy.textContent='Copy', 900);
+    }catch(err){
+      push({type:'Error', message:'Clipboard failed: '+err.message, stack:err.stack, ts:Date.now()});
+    }
+  });
+  btnClear.addEventListener('click', ()=>{
+    logs.length = 0; render();
+    panel.classList.add('hidden');
+  });
+  btnHide.addEventListener('click', ()=>{
+    panel.classList.add('hidden');
+  });
+
+  // Expose helper for our own try/catch blocks
+  window.__LP_ERR = (msg, err)=>{
+    push({ type:'App', message: msg + (err && err.message ? ` — ${err.message}` : ''), stack: (err && err.stack) || '', ts: Date.now() });
+  };
+})();
+
+/* ===========================
+   Audio Graph & State (guarded)
+=========================== */
+let gridEl, ui, analyser, recorder, limiter, reverb, delay, synth, metro, metroLoop;
+let gridNotes = [];         // notes currently rendered (top-left → bottom-right)
+let scaleSpanMidi = [];     // scale notes across octaves (MIDI)
+let latched = false;
+let sustain = false;        // spacebar holds releases
+const activeByPointer = new Map();
+const latchedPads = new Set(); // pad elements
+const heldNotes = new Set();   // for arpeggiator
+let chordMode = false;
+
+// Sequencer
+const SEQ_STEPS = 16;
+const SEQ_ROWS = 8;
+let seqCells = [];
+let seqLoop = null;
+let seqPlayhead = 0;
+
+// scope
+let scope, ctx;
+
+/* ===========================
+   Utilities / Music
+=========================== */
+const $ = id => document.getElementById(id);
+const SCALES = {
+  ionian:      [0,2,4,5,7,9,11],
+  aeolian:     [0,2,3,5,7,8,10],
+  dorian:      [0,2,3,5,7,9,10],
+  mixolydian:  [0,2,4,5,7,9,10],
+  pentMajor:   [0,2,4,7,9],
+  pentMinor:   [0,3,5,7,10],
+  blues:       [0,3,5,6,7,10],
+  chromatic:   [...Array(12)].map((_,i)=>i)
+};
+const KEY_TO_SEMITONE = {
+  'C':0,'C#':1,'Db':1,'D':2,'D#':3,'Eb':3,'E':4,'F':5,'F#':6,'Gb':6,'G':7,'G#':8,'Ab':8,'A':9,'A#':10,'Bb':10,'B':11
+};
+const midiToName = m => Tone.Frequency(m, "midi").toNote();
+const noteToMidi = n => Tone.Frequency(n).toMidi();
+const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+
+function buildScaleSpanMidi(key, scale, startOct, octaves, extra=24){
+  const root = KEY_TO_SEMITONE[key] ?? 0;
+  const pattern = SCALES[scale] ?? SCALES.ionian;
+  const midiStart = 12 * (startOct + 1);
+  const out = [];
+  let idx = 0;
+  const seedStart = midiStart + root - 12;
+  while(out.length < (octaves*12 + extra)){
+    const deg = pattern[idx % pattern.length];
+    const octaveOffset = Math.floor(idx / pattern.length);
+    const midi = seedStart + deg + 12*octaveOffset;
+    if (midi >= 0) out.push(midi);
+    idx++;
+  }
+  return out;
+}
+function buildScaleNotes(key, scale, startOct, octaves, count){
+  const root = KEY_TO_SEMITONE[key] ?? 0;
+  const pattern = SCALES[scale] ?? SCALES.ionian;
+  const midiStart = 12 * (startOct + 1);
+  const out = [];
+  let i = 0;
+  while(out.length < count){
+    const deg = pattern[i % pattern.length];
+    const octaveOffset = Math.floor(i / pattern.length);
+    const midi = midiStart + root + deg + 12 * octaveOffset;
+    out.push(midiToName(midi));
+    i++;
+    if (octaves > 0){
+      const highest = midiStart + root + 12*octaves + (pattern[pattern.length-1] || 0);
+      if (Tone.Frequency(out[out.length-1]).toMidi() > highest + 12) break;
+    }
+  }
+  return out.slice(0, count);
+}
+function hueForNote(note){
+  const midi = noteToMidi(note) % 12;
+  return (midi * 30 + 360 + 10) % 360;
+}
+function setGridSize(n){
+  document.documentElement.style.setProperty('--n', n);
+}
+function placeNotesByLayout(notes, layout, n){
+  const out = new Array(n*n).fill(null);
+  const total = out.length;
+  if(layout === 'row'){
+    for(let i=0;i<total;i++) out[i] = notes[i % notes.length];
+  }else if(layout === 'col'){
+    let idx=0;
+    for(let c=0;c<n;c++){
+      for(let r=0;r<n;r++){
+        const pos = r*n + c;
+        out[pos] = notes[idx % notes.length]; idx++;
+      }
+    }
+  }else if(layout === 'snake'){
+    let idx = 0;
+    for(let r=0;r<n;r++){
+      if(r%2===0){
+        for(let c=0;c<n;c++) out[r*n+c] = notes[idx++ % notes.length];
+      }else{
+        for(let c=n-1;c>=0;c--) out[r*n+c] = notes[idx++ % notes.length];
+      }
+    }
+  }else if(layout === 'pc'){
+    const pcs = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+    const mapByPc = {};
+    notes.forEach(n=>{
+      const pc = n.replace(/[0-9]/g,'');
+      (mapByPc[pc] ||= []).push(n);
+    });
+    const flat = [];
+    pcs.forEach(pc=> (mapByPc[pc]||[]).forEach(n=>flat.push(n)));
+    for(let i=0;i<total;i++) out[i] = flat[i % flat.length] || notes[i%notes.length];
+  }else{
+    for(let i=0;i<total;i++) out[i] = notes[i % notes.length];
+  }
+  return out;
+}
+function renderLegend(){
+  try{
+    const pcs = new Set(gridNotes.map(n=>n.replace(/[0-9]/g,'')));
+    ui.legend.innerHTML = '';
+    [...pcs].forEach(pc=>{
+      const chip = document.createElement('span');
+      chip.className = 'pill';
+      chip.style.borderColor = 'transparent';
+      const hue = hueForNote(pc+'4');
+      chip.style.background = `linear-gradient(135deg, hsl(${hue} 80% 38%), hsl(${(hue+20)%360} 70% 30%))`;
+      chip.style.color = '#fff';
+      chip.textContent = pc;
+      ui.legend.appendChild(chip);
+    });
+  }catch(err){ __LP_ERR('renderLegend failed', err); }
+}
+
+/* ===========================
+   UI & Grid Rendering (guarded)
+=========================== */
+function renderGrid(){
+  try{
+    const n = parseInt(ui.gridN.value, 10);
+    const total = n*n;
+    setGridSize(n);
+
+    const raw = buildScaleNotes(
+      ui.key.value,
+      ui.scale.value,
+      parseInt(ui.startOct.value,10),
+      parseInt(ui.octs.value,10),
+      total
+    );
+    scaleSpanMidi = buildScaleSpanMidi(
+      ui.key.value,
+      ui.scale.value,
+      parseInt(ui.startOct.value,10),
+      parseInt(ui.octs.value,10),
+      24
+    );
+    gridNotes = placeNotesByLayout(raw, ui.layout.value, n);
+
+    gridEl.innerHTML = '';
+    latchedPads.clear(); heldNotes.clear();
+
+    gridNotes.forEach((note, idx)=>{
+      const d = document.createElement('button');
+      d.type = 'button';
+      d.className = 'pad';
+      d.tabIndex = 0;
+      d.setAttribute('role','gridcell');
+      d.setAttribute('aria-label', `Pad ${idx+1} ${note}`);
+      d.dataset.note = note;
+      d.dataset.index = idx;
+      d.style.setProperty('--pad-h', hueForNote(note));
+      d.innerHTML = `<div class="note">${note}</div><div class="small"></div>`;
+      gridEl.appendChild(d);
+    });
+
+    renderLegend();
+    keyboardMap.setGrid(parseInt(ui.gridN.value,10));
+    refreshSequencerRows();
+  }catch(err){ __LP_ERR('renderGrid failed', err); }
+}
+
+/* ===========================
+   Audio start gate
+=========================== */
+function resumeAudio(){
+  try{
+    Tone.start();
+    window.removeEventListener('pointerdown', resumeAudio);
+  }catch(err){ __LP_ERR('Audio resume failed', err); }
+}
+window.addEventListener('pointerdown', resumeAudio, { once:true });
+
+/* ===========================
+   Pad Interaction
+=========================== */
+function ripple(pad){
+  const r = document.createElement('span');
+  r.className = 'ripple';
+  r.style.left = '50%'; r.style.top = '50%'; r.style.transform = 'translate(-50%,-50%)';
+  pad.appendChild(r); setTimeout(()=>r.remove(), 380);
+}
+function chordForIndex(i){
+  const target = noteToMidi(gridNotes[i]);
+  let k = scaleSpanMidi.findIndex(m=>m>=target);
+  if(k<0) k = 0;
+  return [scaleSpanMidi[k], scaleSpanMidi[k+2], scaleSpanMidi[k+4]]
+    .filter(Boolean)
+    .map(midiToName);
+}
+function startNote(pad, velocity = 0.85){
+  try{
+    const note = pad.dataset.note;
+    const i = parseInt(pad.dataset.index,10);
+    synth.set({ voice: { oscillator: { type: ui.wave.value } }});
+    if (ui.arp.classList.contains('on')){
+      if(chordMode){ chordForIndex(i).forEach(n=> heldNotes.add(n)); }
+      else { heldNotes.add(note); }
+      pad.classList.add('active');
+    } else {
+      if(chordMode){ chordForIndex(i).forEach(n=> synth.triggerAttack(n, undefined, velocity)); }
+      else { synth.triggerAttack(note, undefined, velocity); }
+      pad.classList.add('active');
+      ripple(pad);
+      if (latched){ latchedPads.add(pad); pad.classList.add('latched'); }
+    }
+  }catch(err){ __LP_ERR('startNote failed', err); }
+}
+function stopNote(pad){
+  try{
+    const note = pad?.dataset?.note;
+    const i = parseInt(pad?.dataset?.index||'-1',10);
+    if(!note) return;
+
+    if (ui.arp.classList.contains('on')){
+      if(chordMode){ chordForIndex(i).forEach(n=> heldNotes.delete(n)); }
+      else { heldNotes.delete(note); }
+      pad.classList.remove('active','latched');
+    } else {
+      if (latched && latchedPads.has(pad)) return;
+      if (sustain) return;
+      if(chordMode){ chordForIndex(i).forEach(n=> synth.triggerRelease(n)); }
+      else { synth.triggerRelease(note); }
+      pad.classList.remove('active','latched');
+      latchedPads.delete(pad);
+    }
+  }catch(err){ __LP_ERR('stopNote failed', err); }
+}
+function bindPadEvents(){
+  try{
+    gridEl.addEventListener('pointerdown', e=>{
+      const pad = e.target.closest('.pad'); if(!pad) return;
+      e.preventDefault();
+      pad.setPointerCapture(e.pointerId);
+      const velocity = typeof e.pressure === 'number' && e.pressure > 0 ? e.pressure : .85;
+      activeByPointer.set(e.pointerId, pad);
+      startNote(pad, velocity);
+    });
+    function releasePointer(e){
+      const pad = activeByPointer.get(e.pointerId);
+      if(!pad) return;
+      activeByPointer.delete(e.pointerId);
+      stopNote(pad);
+    }
+    gridEl.addEventListener('pointerup', releasePointer);
+    gridEl.addEventListener('pointercancel', releasePointer);
+    gridEl.addEventListener('pointermove', e=>{
+      if(!activeByPointer.has(e.pointerId)) return;
+      const padNow = e.target.closest('.pad');
+      const padPrev = activeByPointer.get(e.pointerId);
+      if(padNow && padNow !== padPrev){
+        if (!latchedPads.has(padPrev)) stopNote(padPrev);
+        activeByPointer.set(e.pointerId, padNow);
+        const velocity = (e.pressure && e.pressure>0) ? e.pressure : .85;
+        startNote(padNow, velocity);
+      }
+    });
+  }catch(err){ __LP_ERR('bindPadEvents failed', err); }
+}
+
+/* ===========================
+   Latch / Sustain / Panic / Keyboard
+=========================== */
+function bindGlobalKeys(){
+  window.addEventListener('keydown', (e)=>{
+    if(e.repeat) return;
+    if(e.code === 'Space'){ sustain = true; e.preventDefault(); return; }
+    if(e.key.toLowerCase() === 'l'){ ui.latch.click(); return; }
+    if(e.key === 'Escape'){ panic(); return; }
+    if(e.key === '.'){ cycleTheme(); return; }
+    const k = e.key.toLowerCase();
+    const pad = keyboardMap.get(k);
+    if(pad){ startNote(pad, .9); }
+  });
+  window.addEventListener('keyup', (e)=>{
+    if(e.code === 'Space'){ sustain = false;
+      document.querySelectorAll('.pad').forEach(p=>{
+        if(!latchedPads.has(p) && ![...activeByPointer.values()].includes(p)){
+          stopNote(p);
+        }
+      });
+      return;
+    }
+    const k = e.key.toLowerCase();
+    const pad = keyboardMap.get(k);
+    if(pad){ stopNote(pad); }
+  });
+}
+function panic(){
+  try{
+    heldNotes.clear();
+    synth.releaseAll();
+    document.querySelectorAll('.pad').forEach(p=>p.classList.remove('active','latched'));
+    latchedPads.clear();
+  }catch(err){ __LP_ERR('panic failed', err); }
+}
+const keyboardMap = (()=> {
+  const rows = [ "1234567890", "qwertyuiop", "asdfghjkl;", "zxcvbnm,./" ];
+  const map = new Map();
+  return {
+    setGrid(n){ 
+      map.clear();
+      const pads = [...document.querySelectorAll('.pad')];
+      const flat = rows.join('');
+      for(let i=0;i<Math.min(pads.length, flat.length); i++){
+        map.set(flat[i], pads[i]);
+      }
+    },
+    get(key){ return map.get(key) }
+  };
+})();
+
+/* ===========================
+   Arpeggiator + Metronome (guarded)
+=========================== */
+let arpPart = null;
+function setArp(on){
+  try{
+    if(on){
+      if(arpPart){ arpPart.dispose(); arpPart = null; }
+      arpPart = new Tone.Loop(time=>{
+        const notes = [...heldNotes];
+        if(notes.length === 0) return;
+        const step = Math.floor(((Tone.Transport.seconds * 4) % notes.length));
+        const note = notes[step % notes.length];
+        synth.set({ voice: { oscillator: { type: ui.wave.value } }});
+        synth.triggerAttackRelease(note, '8n', time, .9);
+        const pad = [...document.querySelectorAll('.pad')].find(p=>{
+          if(chordMode){
+            const i = parseInt(p.dataset.index,10);
+            return chordForIndex(i).includes(note);
+          }
+          return p.dataset.note===note;
+        });
+        if(pad){
+          pad.classList.add('active');
+          setTimeout(()=>{ if(!latchedPads.has(pad)) pad.classList.remove('active'); }, 90);
+        }
+      }, '8n').start(0);
+      if(Tone.Transport.state !== 'started'){ Tone.Transport.start(); }
+    } else {
+      if(arpPart){ arpPart.stop(); arpPart.dispose(); arpPart = null; }
+    }
+  }catch(err){ __LP_ERR('setArp failed', err); }
+}
+function setMetronome(on){
+  try{
+    if(on){
+      if(metroLoop){ metroLoop.dispose(); }
+      metroLoop = new Tone.Loop(time=>{
+        metro.triggerAttackRelease('C2', '16n', time, .3);
+      }, '4n').start(0);
+      if(Tone.Transport.state !== 'started'){ Tone.Transport.start(); }
+    } else {
+      if(metroLoop){ metroLoop.stop(); metroLoop.dispose(); metroLoop = null; }
+    }
+  }catch(err){ __LP_ERR('setMetronome failed', err); }
+}
+
+/* ===========================
+   Theme & Presets (single source of truth)
+=========================== */
+function applyTheme(cls){
+  document.body.className = cls || '';
+  try{ localStorage.setItem('lp_theme', document.body.className); }catch(_){/* ignore */}
+}
+function cycleTheme(){
+  const opts = ['theme-neon', 'theme-light', ''];
+  const cur = opts.indexOf(document.body.className);
+  applyTheme(opts[(cur+1)%opts.length]);
+  if (ui && ui.themeSel) ui.themeSel.value = document.body.className;
+}
+
+const PRESET_KEY = 'lp_project_two_preset';
+
+function snapshot(){
+  return {
+    key: ui.key.value,
+    scale: ui.scale.value,
+    octs: ui.octs.value,
+    startOct: ui.startOct.value,
+    gridN: ui.gridN.value,
+    layout: ui.layout.value,
+    wave: ui.wave.value,
+    rev: ui.rev.value,
+    delay: ui.delay.value,
+    vol: ui.vol.value,
+    tempo: ui.tempo.value,
+    swing: ui.swing.value,
+    chordMode,
+    latched,
+    seqOn: ui.seqOn.classList.contains('on'),
+    seq: seqCells
+  };
+}
+function restore(s){
+  try{
+    if(!s) return;
+    ui.key.value = s.key || ui.key.value;
+    ui.scale.value = s.scale || ui.scale.value;
+    ui.octs.value = s.octs || ui.octs.value;
+    ui.startOct.value = s.startOct ?? ui.startOct.value;
+    ui.gridN.value = s.gridN || ui.gridN.value;
+    ui.layout.value = s.layout || ui.layout.value;
+    ui.wave.value = s.wave || ui.wave.value;
+    ui.rev.value = s.rev ?? ui.rev.value;
+    ui.delay.value = s.delay ?? ui.delay.value;
+    ui.vol.value = s.vol ?? ui.vol.value;
+    ui.tempo.value = s.tempo ?? ui.tempo.value;
+    ui.swing.value = s.swing ?? ui.swing.value;
+
+    chordMode = !!s.chordMode;
+    ui.chord.classList.toggle('on', chordMode);
+    ui.chord.textContent = `Chord: ${chordMode?'On':'Off'}`;
+
+    latched = !!s.latched;
+    ui.latch.classList.toggle('on', latched);
+    ui.latch.textContent = `Latch: ${latched? 'On':'Off'}`;
+
+    // Re-apply control label values
+    ui.rev.dispatchEvent(new Event('input'));
+    ui.delay.dispatchEvent(new Event('input'));
+    ui.vol.dispatchEvent(new Event('input'));
+    ui.tempo.dispatchEvent(new Event('input'));
+    ui.swing.dispatchEvent(new Event('input'));
+
+    // Restore sequencer state
+    seqCells = (Array.isArray(s.seq) && s.seq.length === SEQ_ROWS)
+      ? s.seq
+      : make2D(SEQ_ROWS, SEQ_STEPS, false);
+
+    renderGrid();
+    buildSeqGrid();
+
+    const seqOn = !!s.seqOn;
+    ui.seqOn.classList.toggle('on', seqOn);
+    ui.seqOn.textContent = `Sequencer: ${seqOn ? 'On' : 'Off'}`;
+    setSequencer(seqOn);
+  }catch(err){ __LP_ERR('restore preset failed', err); }
+}
+
+/* ===========================
+   Sequencer
+=========================== */
+function make2D(rows, cols, fill=false){ return Array.from({length:rows},()=>Array.from({length:cols},()=>fill)); }
+function buildSeqGrid(){
+  try{
+    ui.seqGrid.innerHTML = '';
+    const rowNotes = getSeqRowNotes();
+    for(let r=0;r<SEQ_ROWS;r++){
+      const title = document.createElement('div');
+      title.className = 'seqRowTitle';
+      title.textContent = rowNotes[r] || '-';
+      ui.seqGrid.appendChild(title);
+      for(let c=0;c<SEQ_STEPS;c++){
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.dataset.r = r; cell.dataset.c = c;
+        const isOn = seqCells[r] && seqCells[r][c];
+        if(isOn) cell.classList.add('on');
+        cell.addEventListener('click', ()=>{
+          const on = !seqCells[r][c];
+          seqCells[r][c] = on;
+          cell.classList.toggle('on', on);
+        });
+        ui.seqGrid.appendChild(cell);
+      }
+    }
+  }catch(err){ __LP_ERR('buildSeqGrid failed', err); }
+}
+function getSeqRowNotes(){
+  const uniq = [...new Set(gridNotes)];
+  const pick = uniq.slice().reverse().slice(0, SEQ_ROWS);
+  while(pick.length<SEQ_ROWS) pick.push(uniq[pick.length % uniq.length] || 'C4');
+  return pick;
+}
+function refreshSequencerRows(){
+  try{
+    const rowTitles = [...ui.seqGrid.querySelectorAll('.seqRowTitle')];
+    const rowNotes = getSeqRowNotes();
+    rowTitles.forEach((t,i)=> t.textContent = rowNotes[i] || '-');
+  }catch(err){ __LP_ERR('refreshSequencerRows failed', err); }
+}
+function setSequencer(on){
+  try{
+    if(on){
+      if(seqLoop){ seqLoop.dispose(); seqLoop=null; }
+      seqPlayhead = 0;
+      seqLoop = new Tone.Loop(time=>{
+        const rowNotes = getSeqRowNotes();
+        for(let r=0;r<SEQ_ROWS;r++){
+          if(seqCells[r][seqPlayhead]){
+            const n = rowNotes[r];
+            if(chordMode){
+              const i = gridNotes.indexOf(n);
+              if(i>=0) chordForIndex(i).forEach(nn=> synth.triggerAttackRelease(nn, '16n', time, .85));
+              else synth.triggerAttackRelease(n,'16n',time,.85);
+            }else{
+              synth.triggerAttackRelease(n,'16n',time,.85);
+            }
+          }
+        }
+        paintPlayhead(seqPlayhead);
+        seqPlayhead = (seqPlayhead+1) % SEQ_STEPS;
+      }, '16n').start(0);
+      if(Tone.Transport.state!=='started'){ Tone.Transport.start(); }
+    } else {
+      if(seqLoop){ seqLoop.stop(); seqLoop.dispose(); seqLoop=null; clearPlayhead(); }
+    }
+  }catch(err){ __LP_ERR('setSequencer failed', err); }
+}
+function clearPlayhead(){
+  ui.seqGrid.querySelectorAll('.cell.play').forEach(c=>c.classList.remove('play'));
+}
+function paintPlayhead(col){
+  clearPlayhead();
+  ui.seqGrid.querySelectorAll(`.cell[data-c="${col}"]`).forEach(c=> c.classList.add('play'));
+}
+
+/* ===========================
+   Visualizer
+=========================== */
+function drawScope(){
+  try{
+    const w = scope.clientWidth, h = scope.clientHeight;
+    if(scope.width!==w || scope.height!==h){ scope.width=w; scope.height=h; }
+    const data = analyser.getValue();
+    ctx.clearRect(0,0,w,h);
+    ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--panel-2').trim();
+    ctx.fillRect(0,0,w,h);
+    ctx.strokeStyle = 'rgba(255,255,255,.06)'; ctx.lineWidth = 1; ctx.beginPath();
+    for(let i=1;i<8;i++){ const y = (h/8)*i; ctx.moveTo(0,y); ctx.lineTo(w,y); }
+    ctx.stroke();
+    ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue('--accent-2').trim() || '#8bd2ff';
+    ctx.lineWidth = 2; ctx.beginPath();
+    for(let i=0;i<data.length;i++){
+      const x = (i/(data.length-1))*w; const y = (0.5 - data[i]/2)*h;
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+  }catch(err){ __LP_ERR('drawScope failed', err); }
+  requestAnimationFrame(drawScope);
+}
+
+/* ===========================
+   Boot (with guards)
+=========================== */
+function bindUI(){
+  ui = {
+    key: $('key'),
+    scale: $('scale'),
+    octs: $('octaves'),
+    startOct: $('startOct'),
+    gridN: $('gridN'),
+    layout: $('layout'),
+    wave: $('wave'),
+    rev: $('rev'), revV: $('revV'),
+    delay: $('delay'), delayV: $('delayV'),
+    vol: $('vol'), volV: $('volV'),
+    latch: $('latch'),
+    tempo: $('tempo'), tempoV: $('tempoV'),
+    swing: $('swing'), swingV: $('swingV'),
+    arp: $('arp'),
+    panic: $('panic'),
+    chord: $('chord'),
+    randomize: $('randomize'),
+    legend: $('legend'),
+    themeSel: $('themeSel'),
+    midiIn: $('midiIn'),
+    record: $('record'),
+    download: $('download'),
+    metro: $('metro'),
+    seqOn: $('seqOn'),
+    seqGrid: $('seqGrid'),
+    seqClear: $('seqClear'),
+    seqRand: $('seqRand'),
+    savePreset: $('savePreset'),
+    loadPreset: $('loadPreset')
+  };
+  gridEl = $('pads');
+  scope = $('scope');
+  ctx = scope.getContext('2d');
+}
+
+function setupAudio(){
+  try{
+    reverb = new Tone.Freeverb({ roomSize: .85, dampening: 2500, wet: .28 });
+    delay  = new Tone.PingPongDelay({ delayTime: '8n', feedback: .33, wet: .18 });
+    limiter = new Tone.Limiter(-1);
+    analyser = new Tone.Analyser('waveform', 1024);
+    recorder = null;
+
+    const poly = new Tone.PolySynth(Tone.Synth, {
+      maxPolyphony: 12,
+      oscillator:{ type:'sine' },
+      envelope:{ attack:.01, decay:.1, sustain:.5, release:.35 }
+    });
+    synth = poly.chain(delay, reverb, limiter, Tone.Destination);
+
+    // taps
+    limiter.connect(analyser);
+    try{
+      if (Tone.Recorder){
+        recorder = new Tone.Recorder();
+        limiter.connect(recorder);
+      } else {
+        ui.record.disabled = true;
+        ui.record.textContent = 'Record (unavailable)';
+      }
+    }catch(err){
+      __LP_ERR('Recorder setup failed', err);
+      ui.record.disabled = true;
+      ui.record.textContent = 'Record (unavailable)';
+    }
+
+    // base volume & transport
+    Tone.Destination.volume.value = -6;
+    Tone.Transport.bpm.value = 110;
+    Tone.Transport.swing = 0;
+    Tone.Transport.swingSubdivision = '8n';
+
+    // Metronome
+    metro = new Tone.MembraneSynth({ envelope:{ attack:0.001, decay:.08, sustain:0 } }).connect(limiter);
+  }catch(err){ __LP_ERR('setupAudio failed', err); }
+}
+
+function bindControls(){
+  ui.rev.addEventListener('input', e=>{
+    const v = parseFloat(e.target.value);
+    reverb.wet.value = v; ui.revV.textContent = Math.round(v*100) + '%';
+  });
+  ui.delay.addEventListener('input', e=>{
+    const v = parseFloat(e.target.value);
+    delay.wet.value = v; ui.delayV.textContent = Math.round(v*100) + '%';
+  });
+  ui.vol.addEventListener('input', e=>{
+    const v = parseFloat(e.target.value);
+    Tone.Destination.volume.value = v; ui.volV.textContent = `${v} dB`;
+  });
+  ui.wave.addEventListener('change', ()=>{
+    synth.set({ voice: { oscillator: { type: ui.wave.value } }});
+  });
+  ui.tempo.addEventListener('input', e=>{
+    const bpm = parseInt(e.target.value,10);
+    Tone.Transport.bpm.rampTo(bpm, .05); ui.tempoV.textContent = `${bpm} BPM`;
+  });
+  ui.swing.addEventListener('input', e=>{
+    const v = parseFloat(e.target.value);
+    Tone.Transport.swing = v; Tone.Transport.swingSubdivision = '8n';
+    ui.swingV.textContent = `${Math.round(v*100)}%`;
+  });
+
+  // scale/layout changes
+  ['key','scale','octs','startOct','gridN','layout'].forEach(k=>{
+    ui[k].addEventListener('change', renderGrid);
+  });
+
+  ui.chord.addEventListener('click', ()=>{
+    chordMode = !chordMode;
+    ui.chord.classList.toggle('on', chordMode);
+    ui.chord.textContent = `Chord: ${chordMode ? 'On' : 'Off'}`;
+  });
+  ui.randomize.addEventListener('click', ()=>{
+    try{
+      for(let i=gridNotes.length-1;i>0;i--){
+        const j = Math.floor(Math.random()*(i+1));
+        [gridNotes[i],gridNotes[j]] = [gridNotes[j],gridNotes[i]];
+      }
+      const pads = [...document.querySelectorAll('.pad')];
+      pads.forEach((p,i)=>{
+        const note = gridNotes[i];
+        p.dataset.note = note;
+        p.style.setProperty('--pad-h', hueForNote(note));
+        p.querySelector('.note').textContent = note;
+      });
+      renderLegend();
+    }catch(err){ __LP_ERR('Randomize failed', err); }
+  });
+  ui.latch.addEventListener('click', ()=>{
+    latched = !latched; ui.latch.classList.toggle('on', latched);
+    ui.latch.textContent = `Latch: ${latched? 'On':'Off'}`;
+  });
+  ui.arp.addEventListener('click', ()=>{
+    const on = !ui.arp.classList.contains('on');
+    ui.arp.classList.toggle('on', on);
+    ui.arp.textContent = `Arp: ${on? 'On':'Off'}`;
+    setArp(on);
+  });
+  ui.metro.addEventListener('click', ()=>{
+    const on = !ui.metro.classList.contains('on');
+    ui.metro.classList.toggle('on', on);
+    ui.metro.textContent = `Met: ${on? 'On':'Off'}`;
+    setMetronome(on);
+  });
+  ui.panic.addEventListener('click', panic);
+
+  // Sequencer controls
+  ui.seqOn.addEventListener('click', ()=>{
+    const on = !ui.seqOn.classList.contains('on');
+    ui.seqOn.classList.toggle('on', on);
+    ui.seqOn.textContent = `Sequencer: ${on ? 'On' : 'Off'}`;
+    setSequencer(on);
+  });
+  ui.seqClear.addEventListener('click', ()=>{
+    seqCells = make2D(SEQ_ROWS, SEQ_STEPS, false);
+    ui.seqGrid.querySelectorAll('.cell').forEach(c=>c.classList.remove('on'));
+  });
+  ui.seqRand.addEventListener('click', ()=>{
+    try{
+      const density = 0.25;
+      seqCells = make2D(SEQ_ROWS, SEQ_STEPS, false);
+      for(let r=0;r<SEQ_ROWS;r++){
+        for(let c=0;c<SEQ_STEPS;c++){
+          if(Math.random() < density){
+            seqCells[r][c] = true;
+          }
+        }
+      }
+      buildSeqGrid();
+    }catch(err){ __LP_ERR('seqRand failed', err); }
+  });
+
+  // Recording (guarded)
+  let recording = false;
+  ui.record.addEventListener('click', async ()=>{
+    try{
+      if (!recorder){ return; }
+      if(!recording){
+        recording = true; ui.record.textContent = 'Stop ⏹';
+        await recorder.start();
+      } else {
+        recording = false; ui.record.textContent = 'Record ⏺';
+        const blob = await recorder.stop();
+        const url = URL.createObjectURL(blob);
+        ui.download.href = url;
+        ui.download.style.display = 'inline-block';
+      }
+    }catch(err){ __LP_ERR('Recording failed', err); }
+  });
+
+  // Theme
+  window.cycleTheme = cycleTheme;
+  ui.themeSel.addEventListener('change', e=> applyTheme(e.target.value));
+
+  // Presets
+  ui.savePreset.addEventListener('click', ()=>{
+    try{
+      const snap = snapshot();
+      localStorage.setItem(PRESET_KEY, JSON.stringify(snap));
+      ui.savePreset.textContent = 'Saved ✔️';
+      setTimeout(()=> ui.savePreset.textContent = 'Save Preset 💾', 1000);
+    }catch(err){ __LP_ERR('Save preset failed', err); }
+  });
+  ui.loadPreset.addEventListener('click', ()=>{
+    try{
+      const raw = localStorage.getItem(PRESET_KEY);
+      if(!raw){
+        ui.loadPreset.textContent = 'No Preset';
+        setTimeout(()=> ui.loadPreset.textContent = 'Load', 900);
+        return;
+      }
+      const obj = JSON.parse(raw);
+      restore(obj);
+      ui.loadPreset.textContent = 'Loaded ✔️';
+      setTimeout(()=> ui.loadPreset.textContent = 'Load', 1000);
+    }catch(err){ __LP_ERR('Load preset failed', err); }
+  });
+}
+
+function setupVisualizer(){
+  try{
+    requestAnimationFrame(drawScope);
+  }catch(err){ __LP_ERR('setupVisualizer failed', err); }
+}
+
+function bindMIDI(){
+  try{
+    if(!('requestMIDIAccess' in navigator)) return;
+    navigator.requestMIDIAccess().then(access=>{
+      const inputs = [...access.inputs.values()];
+      inputs.forEach(inp=>{
+        const opt = document.createElement('option');
+        opt.value = inp.id; opt.textContent = inp.name;
+        ui.midiIn.appendChild(opt);
+      });
+      let activeInput = null;
+      function onMsg(e){
+        const [status, data1, data2] = e.data;
+        const cmd = status & 0xf0;
+        if(cmd===0x90 && data2>0){
+          const note = Tone.Frequency(data1, "midi").toNote();
+          const pads = [...document.querySelectorAll('.pad')];
+          let targetPad = pads.find(p=>p.dataset.note===note);
+          if(!targetPad){
+            let best = pads[0], bd = 9999;
+            pads.forEach(p=>{
+              const d = Math.abs(noteToMidi(p.dataset.note)-data1);
+              if(d<bd){ bd=d; best=p; }
+            });
+            targetPad = best;
+          }
+          startNote(targetPad, data2/127);
+        }else if((cmd===0x80) || (cmd===0x90 && data2===0)){
+          const note = Tone.Frequency(data1, "midi").toNote();
+          const pad = [...document.querySelectorAll('.pad')].find(p=>p.dataset.note===note);
+          if(pad) stopNote(pad);
+        }else if(cmd===0xB0 && data1===64){
+          sustain = data2>=64;
+          if(!sustain){
+            document.querySelectorAll('.pad').forEach(p=>{
+              if(!latchedPads.has(p) && ![...activeByPointer.values()].includes(p)){
+                stopNote(p);
+              }
+            });
+          }
+        }
+      }
+      ui.midiIn.addEventListener('change', ()=>{
+        if(activeInput){ activeInput.onmidimessage = null; activeInput = null; }
+        const inp = inputs.find(i=>i.id===ui.midiIn.value);
+        if(inp){ activeInput = inp; inp.onmidimessage = onMsg; }
+      });
+    }).catch(err=> __LP_ERR('MIDI access failed', err));
+  }catch(err){ __LP_ERR('bindMIDI failed', err); }
+}
+
+function boot(){
+  try{
+    bindUI();
+    setupAudio();
+
+    // Initialize UI labels
+    ui.revV.textContent = Math.round(parseFloat(ui.rev.value)*100) + '%';
+    ui.delayV.textContent = Math.round(parseFloat(ui.delay.value)*100) + '%';
+    ui.volV.textContent = `${ui.vol.value} dB`;
+    ui.tempoV.textContent = `${ui.tempo.value} BPM`;
+    ui.swingV.textContent = `${Math.round(parseFloat(ui.swing.value)*100)}%`;
+
+    // Theme: restore saved theme or keep default; keep selector in sync
+    applyTheme(localStorage.getItem('lp_theme') || document.body.className);
+    ui.themeSel.value = document.body.className;
+
+    // Sequencer initial state
+    seqCells = make2D(SEQ_ROWS, SEQ_STEPS, false);
+    buildSeqGrid();
+
+    bindPadEvents();
+    bindGlobalKeys();
+    bindControls();
+    setupVisualizer();
+    bindMIDI();
+
+    // safety: stop audio when page hides
+    document.addEventListener('visibilitychange', ()=>{
+      try{ if(document.hidden){ synth.releaseAll(); } }catch(e){ __LP_ERR('visibilitychange failed', e); }
+    });
+
+    // Load last preset if present, otherwise render default grid
+    const raw = localStorage.getItem(PRESET_KEY);
+    if(raw){
+      try{ restore(JSON.parse(raw)); }
+      catch(err){ __LP_ERR('Autoload preset failed', err); renderGrid(); }
+    }else{
+      renderGrid();
+    }
+  }catch(err){
+    __LP_ERR('Boot failed', err);
+  }
+}
+boot();
+</script>
+</body>
+</html>
